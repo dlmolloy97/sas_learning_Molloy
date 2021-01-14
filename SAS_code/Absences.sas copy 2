@@ -1,0 +1,113 @@
+%MACRO Absences_main();
+ %web_drop_table(WORK.IMPORT1);
+ %let SecPerDay=86400;
+ FILENAME REFFILE '/folders/myfolders/sasuser.v94/Absences/cleaned_appt_data.csv';
+ PROC IMPORT DATAFILE=REFFILE
+	DBMS=CSV
+	OUT=WORK.IMPORT1;
+	GETNAMES=YES;
+data WORK.IMPORT1    ;
+%let _EFIERR_ = 0; /* set the ERROR detection macro variable */
+ infile REFFILE delimiter = ',' MISSOVER DSD  firstobs=2 ;
+informat VAR1 best32. ;
+informat PatientId best32. ;
+informat AppointmentID best32. ;
+informat Gender $1. ;
+informat ScheduledDay e8601dz. ;
+informat AppointmentDay e8601dz. ;
+informat Age best32. ;
+informat Neighbourhood $17. ;
+informat Scholarship best32. ;
+informat Hipertension best32. ;
+informat Diabetes best32. ;
+informat Alcoholism best32. ;
+informat Handcap best32. ;
+informat SMS_received best32. ;
+informat No_show $3. ;
+format VAR1 best12. ;
+format PatientId best12. ;
+format AppointmentID best12. ;
+format Gender $1. ;
+format ScheduledDay e8601dz. ;
+format AppointmentDay e8601dz. ;
+format Age best12. ;
+format Neighbourhood $17. ;
+format Scholarship best12. ;
+format Hipertension best12. ;
+format Diabetes best12. ;
+format Alcoholism best12. ;
+format Handcap best12. ;
+format SMS_received best12. ;
+format No_show $3. ;
+input
+VAR1
+PatientId
+AppointmentID
+Gender  $
+ScheduledDay
+AppointmentDay
+Age
+Neighbourhood  $
+Scholarship
+Hipertension
+Diabetes
+Alcoholism
+Handcap
+SMS_received
+No_show  $;
+if _ERROR_ then call symputx('_EFIERR_',1);  /* set ERROR detection macro variable */
+PROC SQL; 
+CREATE TABLE WORK.APPT_DAY 
+AS 
+SELECT IMPORT1.No_show, AVG(IMPORT1.AppointmentDay-IMPORT1.ScheduledDay)/SecPerDay AS time_gap
+FROM WORK.IMPORT1 IMPORT1 
+GROUP BY IMPORT1.No_show; 
+QUIT;
+PROC SQL; 
+CREATE TABLE WORK.GENDER 
+AS 
+SELECT SUM(IMPORT1.No_show='Yes')/COUNT(*) AS prop_no_show, IMPORT1.Gender
+FROM WORK.IMPORT1 
+GROUP BY IMPORT1.Gender; 
+QUIT;
+PROC SQL; 
+CREATE TABLE WORK.NEIGHBOURHOOD 
+AS 
+SELECT SUM(IMPORT1.No_show='Yes')/COUNT(*) AS prop_no_show, IMPORT1.Neighbourhood
+FROM WORK.IMPORT1 
+GROUP BY IMPORT1.Neighbourhood; 
+QUIT;
+
+PROC SQL; 
+CREATE TABLE WORK.APPT_DAY_REGRESS
+AS 
+SELECT IMPORT1.No_show,(IMPORT1.AppointmentDay-IMPORT1.ScheduledDay)/86400 AS time_gap
+FROM WORK.IMPORT1 IMPORT1; 
+QUIT;
+ods graphics / reset width=6.4in height=4.8in imagemap;
+proc sgplot data=WORK.APPT_DAY_REGRESS;
+	vbar No_show / response=time_gap stat=mean;
+	yaxis grid;
+PROC SQL; 
+CREATE TABLE WORK.GENDER_REGRESS
+AS 
+SELECT IMPORT1.No_show, IMPORT1.Gender
+FROM WORK.IMPORT1;
+QUIT;
+ods noproctitle;
+ods graphics / imagemap=on;
+proc logistic data=WORK.GENDER_REGRESS;
+	class Gender / param=glm;
+	model No_show(event='Yes')=Gender / link=logit technique=fisher;
+run;
+%MEND Absences_main; 
+
+%Absences_main(); 
+
+
+
+
+
+
+
+
